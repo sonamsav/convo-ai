@@ -32,10 +32,36 @@ initSocketIO(httpServer);
 // Connect Database (graceful memory fallback if offline)
 connectDB();
 
-// Middleware
+// Middleware & CORS Configuration
+const defaultOrigins = [
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+];
+
+const parseAllowedOrigins = () => {
+  const configured = process.env.FRONTEND_URL;
+  if (!configured) return defaultOrigins;
+  const list = configured.split(',').map((url) => url.trim().replace(/\/$/, ''));
+  return [...defaultOrigins, ...list];
+};
+
 app.use(
   cors({
-    origin: ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:5173'],
+    origin: (origin, callback) => {
+      // Allow requests with no origin (e.g. mobile apps, curl, server-to-server)
+      if (!origin) return callback(null, true);
+      const allowed = parseAllowedOrigins();
+      if (
+        allowed.includes(origin) ||
+        origin.endsWith('.vercel.app') ||
+        process.env.NODE_ENV !== 'production'
+      ) {
+        return callback(null, true);
+      }
+      return callback(null, false);
+    },
     credentials: true,
   })
 );
@@ -53,8 +79,8 @@ app.use((req, res, next) => {
   next();
 });
 
-// Comprehensive Health check endpoint
-app.get('/health', (req, res) => {
+// Comprehensive Health check endpoint (available at /health and /api/health)
+const healthHandler = (req, res) => {
   res.json({
     status: 'ok',
     service: 'ConvoAI Enterprise Backend API',
@@ -68,7 +94,10 @@ app.get('/health', (req, res) => {
       activeModel: OPENAI_CONFIG.model,
     },
   });
-});
+};
+
+app.get('/health', healthHandler);
+app.get('/api/health', healthHandler);
 
 // Mount Routes
 app.use('/api/auth', authRoutes);

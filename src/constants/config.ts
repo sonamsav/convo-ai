@@ -1,12 +1,30 @@
 import { UserProfile } from '@/types/user';
 import { AppNotification } from '@/types/notification';
 
+const getSocketUrl = (): string => {
+  if (import.meta.env.VITE_SOCKET_URL) {
+    return import.meta.env.VITE_SOCKET_URL;
+  }
+  const apiUrl = import.meta.env.VITE_API_BASE_URL;
+  if (apiUrl && apiUrl.startsWith('http')) {
+    try {
+      const url = new URL(apiUrl);
+      return url.origin;
+    } catch {
+      // fallback
+    }
+  }
+  return typeof window !== 'undefined' && window.location.origin.startsWith('http')
+    ? window.location.origin
+    : 'http://localhost:5000';
+};
+
 export const APP_CONFIG = {
   name: 'ConvoAI',
   tagline: 'AI-Powered Customer Support & Conversation Intelligence',
   version: '1.0.0-rc',
   apiUrl: import.meta.env.VITE_API_BASE_URL || '/api',
-  socketUrl: import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000',
+  socketUrl: getSocketUrl(),
 };
 
 export const DEFAULT_USER: UserProfile = {

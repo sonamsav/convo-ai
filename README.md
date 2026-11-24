@@ -317,7 +317,7 @@ The event orchestrator (`server/engine/`) evaluates incoming lifecycle events ag
 ```bash
 node server/test-production-e2e.js
 ```
-*Executes all 32 automated tests across Auth, CRM, Agents, Teams, Conversations, Sockets, AI, Automations, Analytics, Reports, and Settings.*
+*Executes all 33 automated tests across Auth, CRM, Agents, Teams, Conversations, Sockets, AI, Automations, Analytics, Reports, and Settings.*
 
 ### Run Production Build Verification
 ```bash
@@ -329,25 +329,80 @@ npm run build
 
 ## 17. Deployment Guide
 
-### Frontend Deployment (Vercel)
-1. Push code to your GitHub repository.
-2. Import project into Vercel.
-3. Set Environment Variables:
-   * `VITE_API_BASE_URL` = `https://your-backend.onrender.com/api`
-   * `VITE_SOCKET_URL` = `https://your-backend.onrender.com`
-4. Deploy! Vercel automatically runs `npm run build` and distributes optimized static assets.
+### Deployment Architecture
+```
+React Frontend (Vercel)
+        |
+        | HTTPS REST APIs + WebSockets (Socket.IO)
+        |
+Node.js Backend (Render)
+        |
+        | Mongoose ODM
+        |
+MongoDB Atlas Cluster
+```
 
-### Backend Deployment (Render)
-1. Create a new **Web Service** on Render connected to your repository.
-2. Build Command: `npm install`
-3. Start Command: `npm run server`
-4. Set Environment Variables (`PORT=5000`, `NODE_ENV=production`, `MONGODB_URI`, `JWT_SECRET`, `OPENAI_API_KEY`, etc.).
-5. Render assigns an HTTPS domain with automatic WebSocket support for Socket.IO.
+### 1. Database Deployment (MongoDB Atlas)
+1. Log in to [MongoDB Atlas](https://www.mongodb.com/cloud/atlas).
+2. Create a free shared cluster (e.g. `Cluster0` - M0 Sandbox).
+3. Under **Security > Database Access**:
+   - Create a database user (e.g. `convoai_admin`). Choose password authentication and securely store the password.
+   - Assign user privileges: `Read and write to any database`.
+4. Under **Security > Network Access**:
+   - Click **Add IP Address** -> Select **Allow Access From Anywhere** (`0.0.0.0/0`) so Render cloud instances can connect.
+5. Under **Deployment > Database**:
+   - Click **Connect** -> **Drivers** (Node.js).
+   - Copy connection string:
+     `mongodb+srv://<username>:<password>@cluster0.abcde.mongodb.net/convoai?retryWrites=true&w=majority`
+   - Replace `<username>` and `<password>` with your created database credentials.
 
-### Database Deployment (MongoDB Atlas)
-1. Create a free shared M0 cluster on MongoDB Atlas.
-2. In Network Access, add `0.0.0.0/0` (or Render outbound IPs).
-3. Copy connection string into `MONGODB_URI`.
+### 2. Backend Deployment (Render)
+1. Log in to [Render](https://render.com) and click **New +** -> **Web Service**.
+2. Connect your GitHub repository `convo-ai`.
+3. Configure Service Settings:
+   - **Name**: `convoai-backend` (or your preferred name)
+   - **Root Directory**: `.` (leave empty for root)
+   - **Runtime**: `Node`
+   - **Build Command**: `npm install`
+   - **Start Command**: `npm start` (or `npm run server`)
+   - **Plan**: Free
+4. Add Environment Variables in the **Environment** tab:
+   | Variable | Value | Description |
+   |---|---|---|
+   | `NODE_ENV` | `production` | Enables production optimizations |
+   | `PORT` | `10000` | Render standard port (auto-assigned) |
+   | `MONGODB_URI` | `mongodb+srv://<user>:<pwd>@...` | MongoDB Atlas connection string |
+   | `JWT_SECRET` | *(Random 32+ char string)* | Access token signing secret |
+   | `JWT_REFRESH_SECRET` | *(Random 32+ char string)* | Refresh token signing secret |
+   | `OPENAI_API_KEY` | `sk-proj-...` | OpenAI secret API key |
+   | `OPENAI_MODEL` | `gpt-4o` | Model choice (`gpt-4o` or `gpt-4o-mini`) |
+   | `FRONTEND_URL` | `https://<your-app>.vercel.app` | Vercel production origin for CORS |
+5. Click **Create Web Service**.
+6. Once deployed, verify the health check endpoint:
+   `https://<your-render-subdomain>.onrender.com/api/health`
+   Should return `{ "status": "ok", "subsystems": { ... } }`.
+
+### 3. Frontend Deployment (Vercel)
+1. Log in to [Vercel](https://vercel.com) and click **Add New...** -> **Project**.
+2. Import the `convo-ai` repository.
+3. Configure Project Settings:
+   - **Framework Preset**: Vite
+   - **Root Directory**: `./`
+   - **Build Command**: `npm run build`
+   - **Output Directory**: `dist`
+4. Add Environment Variables in **Environment Variables**:
+   | Variable | Value | Description |
+   |---|---|---|
+   | `VITE_API_BASE_URL` | `https://<your-render-subdomain>.onrender.com/api` | Render backend REST API endpoint |
+   | `VITE_SOCKET_URL` | `https://<your-render-subdomain>.onrender.com` | Render Socket.IO server endpoint |
+5. Click **Deploy**.
+6. Vercel automatically deploys the static single-page app and enforces client-side routing via `vercel.json`.
+
+### 4. Post-Deployment Verification
+1. Open your Vercel URL (e.g. `https://convoai.vercel.app`).
+2. Log in with demo credentials (`sonam.sav@convoai.io` / `Password123!`).
+3. Verify live Socket.IO connection in the browser console.
+4. Test AI Smart Replies, Customer CRM, Automation Rules, and Analytics.
 
 ---
 
